@@ -7,7 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTaskDto } from "./dto/create-task.dto";
 import { UpdateTaskDto } from "./dto/update-task.dto";
-import {WebSocketsGateway} from "../websockets/websockets.gateway";
+import { WebSocketsGateway } from "../websockets/websockets.gateway";
 
 @Injectable()
 export class TasksService {
@@ -192,7 +192,7 @@ export class TasksService {
             },
         });
         this.websockets.notifyTaskUpdated(updateTask.projectId, taskId, updateTask);
-        return updateTask;
+        return task;
 
 
     }

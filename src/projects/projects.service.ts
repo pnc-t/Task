@@ -3,11 +3,11 @@ import {
     NotFoundException,
     ForbiddenException,
 } from '@nestjs/common';
-import {PrismaService} from "../prisma/prisma.service";
-import {CreateProjectDto} from "./dto/create-project.dto";
-import {UpdateProjectDto} from "./dto/update-project.dto";
-import {AddMemberDto} from "./dto/add-member.dto";
-import {WebSocketsGateway} from "../websockets/websockets.gateway";
+import {PrismaService } from "../prisma/prisma.service";
+import { CreateProjectDto } from "./dto/create-project.dto";
+import { UpdateProjectDto } from "./dto/update-project.dto";
+import { AddMemberDto } from "./dto/add-member.dto";
+import { WebSocketsGateway } from "../websockets/websockets.gateway";
 
 @Injectable()
 export class ProjectsService {
@@ -125,7 +125,7 @@ export class ProjectsService {
             (member) => member.userId === userId,
         );
 
-        if (isMember) {
+        if (!isMember) {
             throw new ForbiddenException('Not AccessPermission for This Project');
         }
         return project;

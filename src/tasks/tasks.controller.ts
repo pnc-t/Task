@@ -15,6 +15,7 @@ import { UpdateTaskDto } from './dto/update-task.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
+@Controller('tasks')
 @UseGuards(JwtAuthGuard)
 export class TasksController {
     constructor(private readonly tasksService: TasksService) {}
