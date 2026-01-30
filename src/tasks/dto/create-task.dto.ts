@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsDateString, IsIn, IsArray } from 'class-validator';
+import { IsString, IsOptional, IsDateString, IsIn, IsArray, IsNumber, Min, Max } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class CreateTaskDto {
@@ -21,6 +21,16 @@ export class CreateTaskDto {
   priority?: string;
 
   @IsOptional()
+  @IsDateString({}, { message: 'startDate must be a valid ISO 8601 date string' })
+  @Transform(({ value }) => {
+    if (value === '' || value === null) {
+      return undefined;
+    }
+    return value;
+  })
+  startDate?: string;
+
+  @IsOptional()
   @IsDateString({}, { message: 'dueDate must be a valid ISO 8601 date string' })
   @Transform(({ value }) => {
     // 空文字列の場合はundefinedに変換
@@ -35,4 +45,24 @@ export class CreateTaskDto {
   @IsArray()
   @IsString({ each: true })
   dependsOn?: string[];
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  estimatedHours?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  progress?: number;
+
+  @IsOptional()
+  @IsString()
+  milestoneId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tagIds?: string[];
 }

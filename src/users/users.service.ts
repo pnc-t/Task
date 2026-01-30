@@ -20,6 +20,8 @@ export class UsersService {
         id: true,
         email: true,
         name: true,
+        avatar: true,
+        bio: true,
         createdAt: true,
         updatedAt: true,
         _count:{
@@ -46,6 +48,7 @@ export class UsersService {
         id: true,
         email: true,
         name: true,
+        avatar: true,
         createdAt: true,
       },
     });
@@ -63,6 +66,7 @@ export class UsersService {
         id: true,
         email: true,
         name: true,
+        avatar: true,
       },
       take: 10,
     });
@@ -71,11 +75,13 @@ export class UsersService {
   async updateProfile(userId: string, data: UpdateProfileDto) {
     return this.prisma.user.update({
       where: { id: userId },
-      data: UpdateProfileDto,
+      data,
       select: {
         id: true,
         email: true,
         name: true,
+        avatar: true,
+        bio: true,
         updatedAt: true,
       },
     });
@@ -151,6 +157,7 @@ export class UsersService {
             id: true,
             name: true,
             email: true,
+            avatar: true,
           },
         },
       },
@@ -220,5 +227,48 @@ export class UsersService {
     });
 
     return { message: 'アカウントを削除しました' };
+  }
+
+  async updateAvatar(userId: string, avatarUrl: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+
+    // 古いアバターがあれば削除
+    if (user?.avatar) {
+      this.deleteAvatarFile(user.avatar);
+    }
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { avatar: avatarUrl },
+      select: { id: true, name: true, email: true, avatar: true },
+    });
+  }
+
+  async deleteAvatar(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+
+    if (user?.avatar) {
+      this.deleteAvatarFile(user.avatar);
+    }
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { avatar: null },
+      select: { id: true, name: true, email: true, avatar: true },
+    });
+  }
+
+  private deleteAvatarFile(avatarPath: string) {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const filePath = path.join(process.cwd(), avatarPath);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch (error) {
+      // ファイル削除に失敗しても続行
+      console.error('Failed to delete avatar file:', error);
+    }
   }
 }

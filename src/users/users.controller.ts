@@ -8,8 +8,15 @@ import {
   Query,
   UseGuards,
   Post,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 import { UsersService } from './users.service';
+import { ProjectsService } from '../projects/projects.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -18,7 +25,10 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly projectsService: ProjectsService,
+  ) {}
 
   @Get('me')
   async getMe(@CurrentUser('id') userId: string) {
@@ -75,5 +85,58 @@ export class UsersController {
     @Body('password') password: string,
   ) {
     return this.usersService.deleteAccount(userId, password);
+  }
+
+  @Post('me/avatar')
+  @UseInterceptors(
+    FileInterceptor('avatar', {
+      storage: diskStorage({
+        destination: './uploads/avatars',
+        filename: (req: any, file, cb) => {
+          const userId = req.user?.id || 'unknown';
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = extname(file.originalname);
+          cb(null, `${userId}-${uniqueSuffix}${ext}`);
+        },
+      }),
+      fileFilter: (req, file, cb) => {
+        if (!file.mimetype.match(/^image\/(jpeg|png|gif|webp)$/)) {
+          cb(new BadRequestException('画像ファイルのみアップロードできます'), false);
+        } else {
+          cb(null, true);
+        }
+      },
+      limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+    }),
+  )
+  async uploadAvatar(
+    @CurrentUser('id') userId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('ファイルを選択してください');
+    }
+    return this.usersService.updateAvatar(userId, `/uploads/avatars/${file.filename}`);
+  }
+
+  @Delete('me/avatar')
+  async deleteAvatar(@CurrentUser('id') userId: string) {
+    return this.usersService.deleteAvatar(userId);
+  }
+
+  // ================ 招待エンドポイント ================
+
+  @Get('me/invitations')
+  async getMyInvitations(@CurrentUser('id') userId: string) {
+    return this.projectsService.getMyInvitations(userId);
+  }
+
+  @Post('me/invitations/:invitationId/respond')
+  async respondToInvitation(
+    @CurrentUser('id') userId: string,
+    @Param('invitationId') invitationId: string,
+    @Body('action') action: 'accept' | 'decline',
+  ) {
+    return this.projectsService.respondToInvitation(invitationId, userId, action);
   }
 }

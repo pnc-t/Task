@@ -4,5 +4,6 @@ export class AuthResponseEntity {
     id: string;
     email: string;
     name: string;
+    avatar?: string | null;
   };
 }

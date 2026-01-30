@@ -127,6 +127,32 @@ export class WebSocketsGateway implements OnGatewayConnection, OnGatewayDisconne
         this.server.to(`project:${projectId}`).emit('member:removed', { projectId, memberId });
     }
 
+    // コメント関連のイベント
+    notifyCommentAdded(projectId: string, taskId: string, data: any) {
+        this.server.to(`project:${projectId}`).emit('comment:added', { projectId, taskId, data });
+    }
+
+    notifyCommentUpdated(projectId: string, taskId: string, commentId: string, data: any) {
+        this.server.to(`project:${projectId}`).emit('comment:updated', { projectId, taskId, commentId, data });
+    }
+
+    notifyCommentDeleted(projectId: string, taskId: string, commentId: string) {
+        this.server.to(`project:${projectId}`).emit('comment:deleted', { projectId, taskId, commentId });
+    }
+
+    // サブタスク関連のイベント
+    notifySubtaskAdded(projectId: string, taskId: string, data: any) {
+        this.server.to(`project:${projectId}`).emit('subtask:added', { projectId, taskId, data });
+    }
+
+    notifySubtaskUpdated(projectId: string, taskId: string, subtaskId: string, data: any) {
+        this.server.to(`project:${projectId}`).emit('subtask:updated', { projectId, taskId, subtaskId, data });
+    }
+
+    notifySubtaskDeleted(projectId: string, taskId: string, subtaskId: string) {
+        this.server.to(`project:${projectId}`).emit('subtask:deleted', { projectId, taskId, subtaskId });
+    }
+
     // ユーザーにメッセージを送信
     sendToUser(userId: string, event: string, data: any) {
         const sockets = this.userSockets.get(userId);
