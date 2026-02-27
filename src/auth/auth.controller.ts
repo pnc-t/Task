@@ -6,7 +6,11 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Res,
 } from '@nestjs/common';
+import * as express from 'express';
+import { ConfigService } from '@nestjs/config';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -18,19 +22,62 @@ import { Public } from './decorators/public.decorator';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
-  @Public()
-  @Post('register')
-  async register(@Body() registerDto: RegisterDto) {
-    return this.authService.register(registerDto);
+  /**
+   * Cookie設定オプションを取得
+   */
+  private getCookieOptions() {
+    const isProduction = this.configService.get('NODE_ENV') === 'production';
+    return {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict' as const,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7日間
+      path: '/',
+    };
   }
 
   @Public()
+  @Throttle({ auth: { ttl: 60000, limit: 5 } })
+  @Post('register')
+  async register(
+    @Body() registerDto: RegisterDto,
+    @Res({ passthrough: true }) res: express.Response,
+  ) {
+    const result = await this.authService.register(registerDto);
+
+    // HttpOnly Cookie にトークンを設定
+    res.cookie('accessToken', result.accessToken, this.getCookieOptions());
+
+    // レスポンスからトークンを除外（セキュリティ強化）
+    return {
+      user: result.user,
+      message: '登録が完了しました',
+    };
+  }
+
+  @Public()
+  @Throttle({ auth: { ttl: 60000, limit: 5 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  async login(
+    @Body() loginDto: LoginDto,
+    @Res({ passthrough: true }) res: express.Response,
+  ) {
+    const result = await this.authService.login(loginDto);
+
+    // HttpOnly Cookie にトークンを設定
+    res.cookie('accessToken', result.accessToken, this.getCookieOptions());
+
+    // レスポンスからトークンを除外（セキュリティ強化）
+    return {
+      user: result.user,
+      message: 'ログインしました',
+    };
   }
 
   @Get('me')
@@ -42,12 +89,20 @@ export class AuthController {
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  async logout() {
-    // クライアント側でトークンを削除する処理
+  async logout(@Res({ passthrough: true }) res: express.Response) {
+    // Cookie をクリア
+    res.clearCookie('accessToken', {
+      httpOnly: true,
+      secure: this.configService.get('NODE_ENV') === 'production',
+      sameSite: 'strict',
+      path: '/',
+    });
+
     return { message: 'ログアウトしました' };
   }
 
   @Public()
+  @Throttle({ auth: { ttl: 60000, limit: 5 } })
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
@@ -55,6 +110,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ auth: { ttl: 60000, limit: 5 } })
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
   async resetPassword(@Body() dto: ResetPasswordDto) {

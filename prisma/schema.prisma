@@ -28,6 +28,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   sentInvitations     ProjectInvitation[] @relation("InvitationsSent")
   receivedInvitations ProjectInvitation[] @relation("InvitationsReceived")
+  chatConversations   ChatConversation[]
 }
 
 model Project {
@@ -37,11 +38,12 @@ model Project {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  tasks       Task[]
-  members     ProjectMember[]
-  milestones  Milestone[]
-  tags        Tag[]
-  invitations ProjectInvitation[]
+  tasks             Task[]
+  members           ProjectMember[]
+  milestones        Milestone[]
+  tags              Tag[]
+  invitations       ProjectInvitation[]
+  chatConversations ChatConversation[]
 }
 
 model ProjectMember {
@@ -283,4 +285,36 @@ model ProjectInvitation {
   @@index([email])
   @@index([token])
   @@index([projectId])
+}
+
+// AIチャット会話
+model ChatConversation {
+  id        String   @id @default(uuid())
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  messages  ChatMessage[]
+
+  @@index([userId])
+  @@index([projectId])
+}
+
+// チャットメッセージ
+model ChatMessage {
+  id        String   @id @default(uuid())
+  role      String   // 'user' | 'assistant' | 'system'
+  content   String   @db.Text
+  metadata  Json?    // ツール実行結果等
+  createdAt DateTime @default(now())
+
+  conversationId String
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
 }
