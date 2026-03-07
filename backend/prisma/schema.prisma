@@ -1,0 +1,343 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  bio       String?
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasks               Task[]
+  projects            ProjectMember[]
+  createdTasks        Task[]              @relation("TaskCreator")
+  taskAssignments     TaskAssignee[]
+  comments            TaskComment[]
+  attachments         TaskAttachment[]
+  activityLogs        ActivityLog[]
+  notifications       Notification[]
+  passwordResetTokens PasswordResetToken[]
+  sentInvitations     ProjectInvitation[] @relation("InvitationsSent")
+  receivedInvitations ProjectInvitation[] @relation("InvitationsReceived")
+  chatConversations   ChatConversation[]
+  timeEntries         TimeEntry[]
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tasks             Task[]
+  members           ProjectMember[]
+  milestones        Milestone[]
+  tags              Tag[]
+  invitations       ProjectInvitation[]
+  chatConversations ChatConversation[]
+}
+
+model ProjectMember {
+  id        String   @id @default(uuid())
+  role      String   @default("member")
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+}
+
+model Task {
+  id             String    @id @default(uuid())
+  title          String
+  description    String?
+  status         String    @default("todo")
+  priority       String    @default("medium")
+  startDate      DateTime?
+  dueDate        DateTime?
+  estimatedHours Float?    // 見積工数（時間）
+  actualHours    Float?    // 実績工数（時間）
+  progress       Int       @default(0) // 進捗率（0-100）
+  actualStartDate DateTime?  // 実際の開始日時
+  actualEndDate   DateTime?  // 実際の終了日時
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  projectId     String
+  project       Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assigneeId    String?
+  assignee      User?      @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdById   String
+  createdBy     User       @relation("TaskCreator", fields: [createdById], references: [id])
+  milestoneId   String?
+  milestone     Milestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+
+  dependencies TaskDependency[] @relation("DependentTask")
+  dependents   TaskDependency[] @relation("DependsOnTask")
+  assignees    TaskAssignee[]
+  comments     TaskComment[]
+  subtasks     Subtask[]
+  attachments  TaskAttachment[]
+  activityLogs ActivityLog[]
+  tags         TaskTag[]
+  timeEntries  TimeEntry[]
+
+  @@index([projectId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([milestoneId])
+}
+
+model TaskDependency {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  taskId      String
+  task        Task   @relation("DependentTask", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOnId String
+  dependsOn   Task   @relation("DependsOnTask", fields: [dependsOnId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, dependsOnId])
+}
+
+model TaskAssignee {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([taskId])
+  @@index([userId])
+}
+
+model TaskComment {
+  id        String   @id @default(uuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([userId])
+}
+
+model Subtask {
+  id        String   @id @default(uuid())
+  title     String
+  completed Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+}
+
+model TaskAttachment {
+  id        String   @id @default(uuid())
+  filename  String
+  fileUrl   String
+  fileSize  Int
+  mimeType  String
+  createdAt DateTime @default(now())
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([taskId])
+  @@index([userId])
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  action      String
+  fieldName   String?
+  oldValue    String?
+  newValue    String?
+  description String?
+  createdAt   DateTime @default(now())
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([taskId])
+  @@index([userId])
+}
+
+model Milestone {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  dueDate     DateTime
+  status      String    @default("pending") // pending, completed
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks     Task[]
+
+  @@index([projectId])
+  @@index([dueDate])
+}
+
+model Tag {
+  id        String   @id @default(uuid())
+  name      String
+  color     String   @default("#6b7280")
+  createdAt DateTime @default(now())
+
+  projectId String
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks     TaskTag[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model TaskTag {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tagId  String
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, tagId])
+  @@index([taskId])
+  @@index([tagId])
+}
+
+// 通知モデル
+model Notification {
+  id        String   @id @default(uuid())
+  type      String   // task_assigned, task_due_soon, comment_added, status_changed, project_invitation
+  title     String
+  message   String
+  data      Json?    // taskId, projectId など
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, isRead])
+}
+
+// パスワードリセットトークン
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+}
+
+// プロジェクト招待
+model ProjectInvitation {
+  id        String   @id @default(uuid())
+  email     String
+  token     String   @unique
+  status    String   @default("pending") // pending, accepted, declined, expired
+  role      String   @default("member")
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  inviterId String
+  inviter   User    @relation("InvitationsSent", fields: [inviterId], references: [id])
+  inviteeId String?
+  invitee   User?   @relation("InvitationsReceived", fields: [inviteeId], references: [id])
+
+  @@index([email])
+  @@index([token])
+  @@index([projectId])
+}
+
+// AIチャット会話
+model ChatConversation {
+  id        String   @id @default(uuid())
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  messages  ChatMessage[]
+
+  @@index([userId])
+  @@index([projectId])
+}
+
+// 工数記録
+model TimeEntry {
+  id          String    @id @default(uuid())
+  hours       Float
+  description String?
+  date        DateTime  @default(now()) @db.Date
+  startTime   DateTime?
+  endTime     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([userId])
+  @@index([date])
+}
+
+// チャットメッセージ
+model ChatMessage {
+  id        String   @id @default(uuid())
+  role      String   // 'user' | 'assistant' | 'system'
+  content   String   @db.Text
+  metadata  Json?    // ツール実行結果等
+  createdAt DateTime @default(now())
+
+  conversationId String
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}
