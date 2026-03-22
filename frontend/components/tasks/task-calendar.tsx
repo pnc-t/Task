@@ -84,7 +84,7 @@ function DroppableTasksArea({ day, isOverDrop, children, onClick }: {
   const { setNodeRef } = useDroppable({ id: format(day, 'yyyy-MM-dd') });
   return (
     <div ref={setNodeRef} onClick={onClick}
-      className={`min-h-[80px] p-1.5 transition-colors ${isOverDrop ? 'bg-blue-50' : ''}`}>
+      className={`min-h-[24px] p-1 transition-colors ${isOverDrop ? 'bg-blue-50' : ''}`}>
       {children}
     </div>
   );
@@ -96,12 +96,13 @@ function DraggableChip({ task, onClick }: { task: Task; onClick: (e: React.Mouse
   const pillStyle = getEventPillStyle(task);
   return (
     <div ref={setNodeRef} {...listeners} {...attributes} onClick={onClick}
-      className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-xs cursor-pointer mb-1
+      className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-xs cursor-pointer mb-0.5
         hover:brightness-90 transition-all select-none
-        ${isDragging ? 'opacity-30' : ''}`}
+        ${isDragging ? 'opacity-30' : ''}
+        ${task.status === 'done' ? 'opacity-60' : ''}`}
       style={pillStyle}
     >
-      <span className="truncate font-medium">{task.title}</span>
+      <span className={`truncate font-medium ${task.status === 'done' ? 'line-through' : ''}`}>{task.title}</span>
     </div>
   );
 }
@@ -165,7 +166,7 @@ export function TaskCalendar({ tasks, onUpdate, milestones = [], projectId, curr
         </div>
 
         {/* 週ごとのレンダリング */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto grid" style={{ gridTemplateRows: `repeat(${weeks.length}, minmax(0, 1fr))` }}>
           {weeks.map((week, wi) => {
             const weekStart = startOfDay(week[0]);
             const weekEnd = startOfDay(week[6]);
@@ -173,7 +174,7 @@ export function TaskCalendar({ tasks, onUpdate, milestones = [], projectId, curr
             const maxLane = layout.length > 0 ? Math.max(...layout.map(e => e.lane)) + 1 : 0;
 
             return (
-              <div key={wi} className="border-b border-gray-100 last:border-b-0">
+              <div key={wi} className="border-b border-gray-100 last:border-b-0 flex flex-col min-h-0">
                 {/* 日付行 */}
                 <div className="grid grid-cols-7">
                   {week.map((day, di) => {
@@ -235,6 +236,7 @@ export function TaskCalendar({ tasks, onUpdate, milestones = [], projectId, curr
                             hover:brightness-90 active:brightness-75 transition-all truncate
                             ${ev.continuesBefore ? 'rounded-l-none pl-1.5' : 'rounded-l ml-0.5 pl-2'}
                             ${ev.continuesAfter ? 'rounded-r-none pr-0' : 'rounded-r mr-0.5'}
+                            ${ev.task.status === 'done' ? 'opacity-60' : ''}
                           `}
                           style={{
                             gridColumn: `${ev.col + 1} / ${ev.col + ev.span + 1}`,
@@ -245,7 +247,7 @@ export function TaskCalendar({ tasks, onUpdate, milestones = [], projectId, curr
                           }}
                           onClick={e => handleEventClick(e, ev.task)}
                         >
-                          <span className="truncate">{ev.task.title}</span>
+                          <span className={`truncate ${ev.task.status === 'done' ? 'line-through' : ''}`}>{ev.task.title}</span>
                         </button>
                       );
                     })}
@@ -253,7 +255,7 @@ export function TaskCalendar({ tasks, onUpdate, milestones = [], projectId, curr
                 )}
 
                 {/* 単日タスクエリア */}
-                <div className="grid grid-cols-7">
+                <div className="grid grid-cols-7 flex-1">
                   {week.map((day, di) => {
                     const inMonth = isSameMonth(day, currentDate);
                     const dayStr = format(day, 'yyyy-MM-dd');

@@ -107,7 +107,7 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     const main = document.querySelector('main');
     if (!main) return;
-    if (viewMode === 'gantt') {
+    if (viewMode === 'gantt' || viewMode === 'calendar') {
       main.style.overflowY = 'hidden';
       main.style.padding = '0';
     }
@@ -195,11 +195,11 @@ export default function ProjectDetailPage() {
   }
 
   return (
-    <div className={viewMode === 'gantt' ? 'flex flex-col h-full' : ''}>
+    <div className={viewMode === 'gantt' || viewMode === 'calendar' ? 'flex flex-col h-full' : ''}>
       {/* ヘッダー */}
-      <div className={`flex items-start justify-between ${viewMode === 'gantt' ? 'px-4 lg:px-6 pt-3 pb-1 flex-shrink-0' : 'mb-6'}`}>
+      <div className={`flex items-start justify-between ${viewMode === 'gantt' || viewMode === 'calendar' ? 'px-4 lg:px-6 pt-3 pb-1 flex-shrink-0' : 'mb-6'}`}>
         <div className="flex-1 min-w-0">
-          {viewMode === 'gantt' ? (
+          {viewMode === 'gantt' || viewMode === 'calendar' ? (
             <div className="flex items-center gap-3">
               <h1 className="text-lg font-bold text-gray-900 truncate">{project.name}</h1>
               <button
@@ -323,7 +323,11 @@ export default function ProjectDetailPage() {
       {/* コンテンツエリア */}
       {viewMode === 'board' && <TaskBoard tasks={tasks} onUpdate={loadTasks} />}
       {viewMode === 'list' && <TaskList tasks={allTasks} onUpdate={loadTasks} />}
-      {viewMode === 'calendar' && <TaskCalendarView tasks={allTasks} onUpdate={loadTasks} milestones={milestones} projectId={projectId} />}
+      {viewMode === 'calendar' && (
+        <div className="flex-1 overflow-hidden">
+          <TaskCalendarView tasks={allTasks} onUpdate={loadTasks} milestones={milestones} projectId={projectId} />
+        </div>
+      )}
       {viewMode === 'gantt' && (
         <div className="flex-1 overflow-hidden">
           <GanttChart tasks={allTasks} onUpdate={loadTasks} milestones={milestones} />
