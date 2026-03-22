@@ -6,6 +6,7 @@ import { projectService } from '@/services/project.service';
 import { taskService } from '@/services/task.service';
 import { milestoneService } from '@/services/milestone.service';
 import { useAuthStore } from '@/lib/auth-store';
+import { useBreadcrumbStore } from '@/lib/breadcrumb-store';
 import { Project } from '@/types/project';
 import { Task, Milestone } from '@/types/task';
 import { wsClient } from '@/lib/websocket-client';
@@ -126,6 +127,17 @@ export default function ProjectDetailPage() {
     if (showMenu) document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showMenu]);
+
+  const setSegments = useBreadcrumbStore(s => s.setSegments);
+  useEffect(() => {
+    if (project) {
+      setSegments([
+        { label: 'プロジェクト', href: '/projects' },
+        { label: project.name },
+      ]);
+    }
+    return () => useBreadcrumbStore.getState().clear();
+  }, [project, setSegments]);
 
   const loadProject = async () => {
     try {

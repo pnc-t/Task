@@ -7,6 +7,7 @@ import { Task, TaskComment, Subtask, TaskAttachment, ActivityLog } from '@/types
 import { taskService } from '@/services/task.service';
 import { projectService } from '@/services/project.service';
 import { useAuthStore } from '@/lib/auth-store';
+import { useBreadcrumbStore } from '@/lib/breadcrumb-store';
 import { wsClient } from '@/lib/websocket-client';
 import { TaskHeader } from '@/components/tasks/task-detail/TaskHeader';
 import { TaskTabs, TabId } from '@/components/tasks/task-detail/TaskTabs';
@@ -90,6 +91,19 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
     loadTaskDetail();
     loadAllCounts(); // カウントを事前に読み込む
   }, [resolvedParams.id]);
+
+  // パンくずリスト
+  const setSegments = useBreadcrumbStore(s => s.setSegments);
+  useEffect(() => {
+    if (task) {
+      setSegments([
+        { label: 'プロジェクト', href: '/projects' },
+        { label: task.project?.name || 'プロジェクト', href: task.project?.id ? `/projects/${task.project.id}` : undefined },
+        { label: task.title },
+      ]);
+    }
+    return () => useBreadcrumbStore.getState().clear();
+  }, [task, setSegments]);
 
   // プロジェクトメンバー、タスク、マイルストーン、タグの読み込み
   useEffect(() => {

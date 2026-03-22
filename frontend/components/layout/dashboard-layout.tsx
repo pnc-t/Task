@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Header } from './header';
 import { Sidebar } from './sidebar';
+import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { ChatPanel, ChatFloatingButton } from '@/components/chat';
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -16,6 +17,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)}/>
 
                 <main className="flex-1 overflow-y-auto p-6 lg:p-8">
+                    <Breadcrumb />
                     {children}
                 </main>
             </div>
