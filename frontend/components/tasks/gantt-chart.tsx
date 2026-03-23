@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Task, Milestone } from '@/types/task';
 import { useAuthStore } from '@/lib/auth-store';
@@ -19,9 +20,10 @@ import {
   isSameDay,
 } from 'date-fns';
 import { ja } from 'date-fns/locale';
-import { AlertTriangle, CheckCircle, Clock, User, Filter, Link2, ZoomIn, ZoomOut, Crosshair, Flag, ChevronDown, ChevronRight } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, User, Filter, Link2, ZoomIn, ZoomOut, Crosshair, Flag, ChevronDown, ChevronRight, Route } from 'lucide-react';
 import { UserAvatar } from '@/components/ui/user-avatar';
 import { useGanttBarDrag } from '@/hooks/use-gantt-bar-drag';
+import { computeCriticalPath } from '@/lib/critical-path';
 
 interface GanttChartProps {
   tasks: Task[];
@@ -48,9 +50,11 @@ export function GanttChart({ tasks, onUpdate, milestones = [] }: GanttChartProps
   const [connectPreviewEnd, setConnectPreviewEnd] = useState<{ x: number; y: number } | null>(null);
   const [cellWidth, setCellWidth] = useState(50);
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const [hoveredConnectId, setHoveredConnectId] = useState<string | null>(null);
   const [hoveredDepIndex, setHoveredDepIndex] = useState<number | null>(null);
+  const [showCriticalPath, setShowCriticalPath] = useState(false);
   const [groupByMilestone, setGroupByMilestone] = useState(true);
   const [expandedMilestones, setExpandedMilestones] = useState<Set<string>>(() => {
     const ids = new Set<string>();
@@ -113,6 +117,12 @@ export function GanttChart({ tasks, onUpdate, milestones = [] }: GanttChartProps
 
     return filtered;
   }, [tasks, filterStatus, filterPriority, showMyTasksOnly, sortBy, user]);
+
+  // クリティカルパス計算
+  const criticalPathIds = useMemo(() => {
+    if (!showCriticalPath) return new Set<string>();
+    return computeCriticalPath(filteredTasks);
+  }, [filteredTasks, showCriticalPath]);
 
   // マイルストーンごとのグループ化
   const milestoneGroups = useMemo(() => {
@@ -822,6 +832,18 @@ export function GanttChart({ tasks, onUpdate, milestones = [] }: GanttChartProps
             依存関係{dependencyCount > 0 && ` (${dependencyCount})`}
           </button>
           <button
+            onClick={() => setShowCriticalPath(!showCriticalPath)}
+            className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+              showCriticalPath
+                ? 'bg-violet-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+            title="クリティカルパスを表示"
+          >
+            <Route className="w-3 h-3 inline mr-0.5" />
+            クリティカルパス
+          </button>
+          <button
             onClick={() => {
               setConnectMode(!connectMode);
               setConnectFrom(null);
@@ -1088,13 +1110,15 @@ export function GanttChart({ tasks, onUpdate, milestones = [] }: GanttChartProps
                         const isDragging = ganttDrag.dragState?.taskId === task.id;
                         const datePreview = ganttDrag.getDatePreview(task.id, task.startDate, task.dueDate);
 
+                        const isCritical = showCriticalPath && criticalPathIds.has(task.id);
+
                         return (
                         <div
                           className={`absolute ${progressStatusColor} rounded-lg shadow-sm flex items-center border-2 group z-0 select-none transition-all ${
                             isDragging ? 'shadow-lg opacity-80 z-30 cursor-grabbing' :
                             connectMode && connectFrom && alreadyConnectedIds.has(task.id) ? 'cursor-not-allowed opacity-40' :
                             connectMode ? 'cursor-pointer' : 'cursor-grab'
-                          } ${connectMode && connectFrom === task.id ? 'ring-2 ring-orange-400 ring-offset-1' : ''} ${
+                          } ${isCritical && !connectMode ? 'ring-2 ring-violet-400 ring-offset-1 shadow-md border-violet-500' : ''} ${connectMode && connectFrom === task.id ? 'ring-2 ring-orange-400 ring-offset-1' : ''} ${
                             connectMode && connectFrom && task.id !== connectFrom && !alreadyConnectedIds.has(task.id) && hoveredConnectId === task.id ? 'ring-2 ring-green-400 ring-offset-1 brightness-110' : ''
                           }`}
                           style={{
@@ -1106,7 +1130,11 @@ export function GanttChart({ tasks, onUpdate, milestones = [] }: GanttChartProps
                           }}
                           onMouseEnter={(e) => {
                             e.stopPropagation();
-                            if (!ganttDrag.dragState && !connectMode) setHoveredTaskId(task.id);
+                            if (!ganttDrag.dragState && !connectMode) {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top });
+                              setHoveredTaskId(task.id);
+                            }
                             if (connectMode) setHoveredConnectId(task.id);
                           }}
                           onMouseLeave={() => { setHoveredTaskId(null); setHoveredConnectId(null); }}
@@ -1130,6 +1158,16 @@ export function GanttChart({ tasks, onUpdate, milestones = [] }: GanttChartProps
                             }
                           }}
                         >
+                          {/* Critical path stripe overlay */}
+                          {isCritical && (
+                            <div
+                              className="absolute inset-0 rounded-lg pointer-events-none z-[1] opacity-25"
+                              style={{
+                                backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 3px, rgba(255,255,255,0.7) 3px, rgba(255,255,255,0.7) 5px)',
+                              }}
+                            />
+                          )}
+
                           {/* Left resize handle */}
                           <div
                             className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-white/30 rounded-l-lg z-10"
@@ -1175,71 +1213,64 @@ export function GanttChart({ tasks, onUpdate, milestones = [] }: GanttChartProps
                             </div>
                           )}
 
-                          {/* ツールチップ */}
-                          {hoveredTaskId === task.id && (() => {
-                            const progressStatus = getTaskProgressStatus(task);
-                            const progressStatusText = {
-                              'on-track': '予定通り ✓',
-                              'behind': '遅れている ⚠',
-                              'overdue': '期限超過 ✕',
-                              'completed': '完了 ✓',
-                              'unknown': '-'
-                            }[progressStatus];
-                            const progressStatusColor = {
-                              'on-track': 'text-green-300',
-                              'behind': 'text-yellow-300',
-                              'overdue': 'text-red-300',
-                              'completed': 'text-green-300',
-                              'unknown': 'text-gray-300'
-                            }[progressStatus];
+                          {/* ツールチップ（Portal） */}
+                          {hoveredTaskId === task.id && createPortal(
+                            (() => {
+                              const progressStatus = getTaskProgressStatus(task);
+                              const progressStatusText = {
+                                'on-track': '予定通り ✓',
+                                'behind': '遅れている ⚠',
+                                'overdue': '期限超過 ✕',
+                                'completed': '完了 ✓',
+                                'unknown': '-'
+                              }[progressStatus];
+                              const tipProgressColor = {
+                                'on-track': 'text-green-300',
+                                'behind': 'text-yellow-300',
+                                'overdue': 'text-red-300',
+                                'completed': 'text-green-300',
+                                'unknown': 'text-gray-300'
+                              }[progressStatus];
 
-                            return (
-                              <div
-                                className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-lg z-40 pointer-events-none whitespace-normal max-w-xs"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <div className="font-semibold mb-2">{task.title}</div>
-                                <div className="space-y-1 text-gray-200 border-b border-gray-700 pb-2 mb-2">
-                                  <div className="font-medium text-white">計画</div>
-                                  <div>開始: {task.startDate ? format(parseISO(task.startDate), 'yyyy/M/d') : '未設定'}</div>
-                                  <div>期限: {task.dueDate ? format(parseISO(task.dueDate), 'yyyy/M/d') : '未設定'}</div>
-                                </div>
-                                {task.actualStartDate && (
-                                  <div className="space-y-1 text-gray-200 border-b border-gray-700 pb-2 mb-2">
-                                    <div className="font-medium text-white">実績</div>
-                                    <div>開始: {format(parseISO(task.actualStartDate), 'yyyy/M/d HH:mm')}</div>
-                                    <div>
-                                      {task.actualEndDate
-                                        ? `終了: ${format(parseISO(task.actualEndDate), 'yyyy/M/d HH:mm')}`
-                                        : '進行中'
-                                      }
-                                    </div>
-                                  </div>
-                                )}
-                                <div className="space-y-1 text-gray-200 border-b border-gray-700 pb-2 mb-2">
-                                  <div className={`font-semibold ${progressStatusColor}`}>{progressStatusText}</div>
-                                  <div>進捗: {progress}%</div>
-                                </div>
-                                {(task.estimatedHours || task.actualHours) && (
-                                  <div className="space-y-1 text-gray-200 border-b border-gray-700 pb-2 mb-2">
-                                    {task.estimatedHours && (
-                                      <div>推定工数: {task.estimatedHours}h</div>
+                              return (
+                                <div
+                                  className="fixed bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-xl pointer-events-none whitespace-normal max-w-xs"
+                                  style={{
+                                    left: tooltipPos.x,
+                                    top: tooltipPos.y - 8,
+                                    transform: 'translate(-50%, -100%)',
+                                    zIndex: 9999,
+                                  }}
+                                >
+                                  <div className="font-semibold mb-1">{task.title}</div>
+                                  <div className={`font-semibold mb-2 ${tipProgressColor}`}>{progressStatusText} ・ 進捗 {progress}%</div>
+                                  <div className="space-y-0.5 text-gray-300 text-[11px]">
+                                    <div>開始: {task.startDate ? format(parseISO(task.startDate), 'yyyy/M/d') : '未設定'}</div>
+                                    <div>期限: {task.dueDate ? format(parseISO(task.dueDate), 'yyyy/M/d') : '未設定'}</div>
+                                    {task.actualStartDate && (
+                                      <div>実績開始: {format(parseISO(task.actualStartDate), 'yyyy/M/d')}</div>
                                     )}
-                                    {task.actualHours && (
-                                      <div>実績工数: {task.actualHours}h</div>
+                                    {task.actualEndDate && (
+                                      <div>実績終了: {format(parseISO(task.actualEndDate), 'yyyy/M/d')}</div>
                                     )}
-                                    {task.estimatedHours && task.actualHours && (
-                                      <div className={task.actualHours > task.estimatedHours ? 'text-orange-300' : 'text-green-300'}>
-                                        差分: {task.actualHours > task.estimatedHours ? '+' : ''}{task.actualHours - task.estimatedHours}h
+                                    {(task.estimatedHours || task.actualHours) && (
+                                      <div>
+                                        工数: {task.actualHours ?? '-'}h / {task.estimatedHours ?? '-'}h
+                                        {task.estimatedHours && task.actualHours && (
+                                          <span className={task.actualHours > task.estimatedHours ? ' text-orange-300' : ' text-green-300'}>
+                                            {' '}({task.actualHours > task.estimatedHours ? '+' : ''}{(task.actualHours - task.estimatedHours).toFixed(1)}h)
+                                          </span>
+                                        )}
                                       </div>
                                     )}
+                                    <div>担当: {getAssigneeName(task)}</div>
                                   </div>
-                                )}
-                                <div className="text-gray-200">担当: {getAssigneeName(task)}</div>
-                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
-                              </div>
-                            );
-                          })()}
+                                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                                </div>
+                              );
+                            })(),
+                            document.body,
+                          )}
 
                           {/* 接続モード用ツールチップ */}
                           {connectMode && hoveredConnectId === task.id && (() => {
@@ -1290,7 +1321,12 @@ export function GanttChart({ tasks, onUpdate, milestones = [] }: GanttChartProps
                               top: '30px',
                               height: '24px',
                             }}
-                            onMouseEnter={(e) => { e.stopPropagation(); setHoveredTaskId(task.id); }}
+                            onMouseEnter={(e) => {
+                              e.stopPropagation();
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top });
+                              setHoveredTaskId(task.id);
+                            }}
                             onMouseLeave={() => setHoveredTaskId(null)}
                           >
                             <span className="text-[9px] text-gray-700 font-medium truncate">
