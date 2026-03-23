@@ -1,4 +1,4 @@
-import { ArrowLeft, Edit2, Trash2 } from 'lucide-react';
+import { ArrowLeft, Edit2, Trash2, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface TaskHeaderProps {
@@ -7,9 +7,10 @@ interface TaskHeaderProps {
   onEdit: () => void;
   onDelete: () => void;
   isEditing: boolean;
+  onSaveAsTemplate?: () => void;
 }
 
-export function TaskHeader({ taskTitle, onBack, onEdit, onDelete, isEditing }: TaskHeaderProps) {
+export function TaskHeader({ taskTitle, onBack, onEdit, onDelete, isEditing, onSaveAsTemplate }: TaskHeaderProps) {
   return (
     <div className="mb-6">
       <div className="flex items-center gap-3 mb-4">
@@ -27,10 +28,18 @@ export function TaskHeader({ taskTitle, onBack, onEdit, onDelete, isEditing }: T
         <div className="flex-1" />
         <div className="flex items-center gap-4">
           {!isEditing && (
-            <Button onClick={onEdit} variant="outline">
-              <Edit2 className="w-4 h-4 mr-2" />
-              編集
-            </Button>
+            <>
+              {onSaveAsTemplate && (
+                <Button onClick={onSaveAsTemplate} variant="outline">
+                  <FileText className="w-4 h-4 mr-2" />
+                  テンプレ保存
+                </Button>
+              )}
+              <Button onClick={onEdit} variant="outline">
+                <Edit2 className="w-4 h-4 mr-2" />
+                編集
+              </Button>
+            </>
           )}
           <button
             onClick={onDelete}

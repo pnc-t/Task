@@ -14,6 +14,7 @@ import { WebSocketsModule } from './websockets/websockets.module';
 import { EmailModule } from './email/email.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AiChatModule } from './ai-chat/ai-chat.module';
+import { TaskTemplatesModule } from './task-templates/task-templates.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { AiChatModule } from './ai-chat/ai-chat.module';
     WebSocketsModule,
     NotificationsModule,
     AiChatModule,
+    TaskTemplatesModule,
   ],
   controllers: [HealthController],
   providers: [
