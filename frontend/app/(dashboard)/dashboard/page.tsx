@@ -10,6 +10,8 @@ import { Project } from '@/types/project';
 import { CheckSquare, FolderKanban, Clock, TrendingUp, ArrowRight, Calendar, Flag, AlertTriangle, ChevronDown, Zap } from 'lucide-react';
 import { format, parseISO, differenceInDays, startOfDay, isAfter } from 'date-fns';
 import { ja } from 'date-fns/locale';
+import { CompletionTrendChart } from '@/components/dashboard/completion-trend-chart';
+import { ActivityFeed } from '@/components/dashboard/activity-feed';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
@@ -451,6 +453,12 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
+
+        {/* 完了率推移チャート */}
+        <CompletionTrendChart tasks={tasks} />
+
+        {/* 最近のアクティビティ */}
+        <ActivityFeed tasks={tasks} />
 
         {/* プロジェクト */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 lg:col-span-2">
