@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
 import { TasksService } from './tasks.service';
 import { TasksController } from './tasks.controller';
+import { IcalService } from './ical.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { WebSocketsModule } from '../websockets/websockets.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -19,7 +20,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     }),
   ],
   controllers: [TasksController],
-  providers: [TasksService],
+  providers: [TasksService, IcalService],
   exports: [TasksService],
 })
 export class TasksModule {}

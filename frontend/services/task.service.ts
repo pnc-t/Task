@@ -171,4 +171,15 @@ export const taskService = {
   deleteTimeEntry: async (taskId: string, entryId: string): Promise<void> => {
     await apiClient.delete(`/tasks/${taskId}/time-entries/${entryId}`);
   },
+
+  bulkUpdate: async (data: {
+    taskIds: string[];
+    status?: string;
+    priority?: string;
+    assigneeId?: string;
+    delete?: boolean;
+  }): Promise<{ message: string; count?: number }> => {
+    const response = await apiClient.post('/tasks/bulk-update', data);
+    return response.data;
+  },
 };

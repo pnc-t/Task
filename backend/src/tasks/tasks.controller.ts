@@ -7,13 +7,16 @@ import {
   Param,
   Delete,
   Query,
+  Res,
   UseGuards,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TasksService } from './tasks.service';
+import { IcalService } from './ical.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
@@ -23,6 +26,7 @@ import { UpdateSubtaskDto } from './dto/update-subtask.dto';
 import { ReorderSubtasksDto } from './dto/reorder-subtasks.dto';
 import { CreateTimeEntryDto } from './dto/create-time-entry.dto';
 import { UpdateTimeEntryDto } from './dto/update-time-entry.dto';
+import { BulkUpdateTaskDto } from './dto/bulk-update-task.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { SkipThrottle } from '@nestjs/throttler';
@@ -31,7 +35,10 @@ import { SkipThrottle } from '@nestjs/throttler';
 @Controller('tasks')
 @UseGuards(JwtAuthGuard)
 export class TasksController {
-  constructor(private readonly tasksService: TasksService) {}
+  constructor(
+    private readonly tasksService: TasksService,
+    private readonly icalService: IcalService,
+  ) {}
 
   @Post()
   create(
@@ -47,6 +54,26 @@ export class TasksController {
     @Query('projectId') projectId?: string,
   ) {
     return this.tasksService.findAll(userId, projectId);
+  }
+
+  @Post('bulk-update')
+  bulkUpdate(
+    @CurrentUser('id') userId: string,
+    @Body() dto: BulkUpdateTaskDto,
+  ) {
+    return this.tasksService.bulkUpdate(userId, dto);
+  }
+
+  @Get('export/ical')
+  async exportIcal(
+    @CurrentUser('id') userId: string,
+    @Query('projectId') projectId: string,
+    @Res() res: Response,
+  ) {
+    const ical = await this.icalService.generateIcal(userId, projectId);
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="tasks.ics"');
+    res.send(ical);
   }
 
   @Get('by-status')

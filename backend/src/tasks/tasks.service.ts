@@ -15,6 +15,7 @@ import { UpdateSubtaskDto } from './dto/update-subtask.dto';
 import { ReorderSubtasksDto } from './dto/reorder-subtasks.dto';
 import { CreateTimeEntryDto } from './dto/create-time-entry.dto';
 import { UpdateTimeEntryDto } from './dto/update-time-entry.dto';
+import { BulkUpdateTaskDto } from './dto/bulk-update-task.dto';
 
 @Injectable()
 export class TasksService {
@@ -159,6 +160,72 @@ export class TasksService {
     this.websockets.notifyTaskDeleted(task.projectId, taskId);
 
     return {message: 'タスクを削除しました'};
+  }
+
+  async bulkUpdate(userId: string, dto: BulkUpdateTaskDto) {
+    const { taskIds, delete: shouldDelete, ...updateData } = dto;
+
+    if (!taskIds || taskIds.length === 0) {
+      throw new BadRequestException('タスクIDが指定されていません');
+    }
+
+    // Verify access to all tasks
+    const tasks = await this.prisma.task.findMany({
+      where: { id: { in: taskIds } },
+      select: { id: true, projectId: true },
+    });
+
+    const projectIds = [...new Set(tasks.map((t) => t.projectId))];
+    for (const projectId of projectIds) {
+      await this.checkProjectAccess(projectId, userId);
+    }
+
+    if (shouldDelete) {
+      await this.prisma.task.deleteMany({
+        where: { id: { in: taskIds } },
+      });
+
+      for (const projectId of projectIds) {
+        for (const taskId of taskIds) {
+          this.websockets.notifyTaskDeleted(projectId, taskId);
+        }
+      }
+
+      return { message: `${taskIds.length}件のタスクを削除しました` };
+    }
+
+    // Build update payload
+    const data: any = {};
+    if (updateData.status) data.status = updateData.status;
+    if (updateData.priority) data.priority = updateData.priority;
+
+    if (Object.keys(data).length > 0) {
+      await this.prisma.task.updateMany({
+        where: { id: { in: taskIds } },
+        data,
+      });
+    }
+
+    // Add assignee if specified
+    if (updateData.assigneeId) {
+      for (const taskId of taskIds) {
+        const existing = await this.prisma.taskAssignee.findFirst({
+          where: { taskId, userId: updateData.assigneeId },
+        });
+        if (!existing) {
+          await this.prisma.taskAssignee.create({
+            data: { taskId, userId: updateData.assigneeId },
+          });
+        }
+      }
+    }
+
+    // Notify updates
+    for (const task of tasks) {
+      this.websockets.notifyTaskUpdated(task.projectId, task.id, task);
+    }
+
+    return { message: `${taskIds.length}件のタスクを更新しました`, count: taskIds.length };
   }
 
   async getTasksByStatus(userId: string, projectId: string) {
