@@ -5,10 +5,54 @@ import { useRouter } from 'next/navigation';
 import { notificationService } from '@/services/notification.service';
 import { Notification, NotificationType } from '@/types/notification';
 import { wsClient } from '@/lib/websocket-client';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, isToday, isYesterday } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { Bell, Check, CheckCheck, Trash2, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
 import { useNotificationSettingsStore } from '@/lib/notification-settings-store';
+
+type FilterType = 'all' | NotificationType;
+
+const typeFilterTabs: { id: FilterType; label: string }[] = [
+  { id: 'all', label: 'すべて' },
+  { id: 'task_assigned', label: 'タスク割当' },
+  { id: 'task_due_soon', label: '期限間近' },
+  { id: 'comment_added', label: 'コメント' },
+  { id: 'status_changed', label: 'ステータス' },
+  { id: 'project_invitation', label: '招待' },
+];
+
+function groupByDate(notifications: Notification[]): { label: string; items: Notification[] }[] {
+  const groups: Map<string, Notification[]> = new Map();
+  const labels: Map<string, string> = new Map();
+
+  for (const n of notifications) {
+    const d = new Date(n.createdAt);
+    let key: string;
+    let label: string;
+
+    if (isToday(d)) {
+      key = 'today';
+      label = '今日';
+    } else if (isYesterday(d)) {
+      key = 'yesterday';
+      label = '昨日';
+    } else {
+      key = 'older';
+      label = 'それ以前';
+    }
+
+    if (!groups.has(key)) {
+      groups.set(key, []);
+      labels.set(key, label);
+    }
+    groups.get(key)!.push(n);
+  }
+
+  return Array.from(groups.entries()).map(([key, items]) => ({
+    label: labels.get(key)!,
+    items,
+  }));
+}
 
 export default function NotificationsPage() {
   const router = useRouter();
@@ -18,6 +62,7 @@ export default function NotificationsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [typeFilter, setTypeFilter] = useState<FilterType>('all');
   const limit = 20;
 
   const fetchNotifications = useCallback(async () => {
@@ -122,8 +167,13 @@ export default function NotificationsPage() {
   };
 
   const filteredNotifications = useMemo(
-    () => notifications.filter((n) => isEnabled(n.type)),
-    [notifications, isEnabled]
+    () => notifications.filter((n) => isEnabled(n.type) && (typeFilter === 'all' || n.type === typeFilter)),
+    [notifications, isEnabled, typeFilter]
+  );
+
+  const groupedNotifications = useMemo(
+    () => groupByDate(filteredNotifications),
+    [filteredNotifications]
   );
 
   if (isLoading && notifications.length === 0) {
@@ -163,61 +213,87 @@ export default function NotificationsPage() {
         </div>
       </div>
 
+      {/* タイプフィルタータブ */}
+      <div className="flex gap-1 mb-4 overflow-x-auto">
+        {typeFilterTabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => { setTypeFilter(tab.id); }}
+            className={`px-3 py-1.5 text-sm font-medium rounded-full whitespace-nowrap transition-colors ${
+              typeFilter === tab.id
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       <div className="bg-white rounded-lg shadow border border-gray-200">
-        {filteredNotifications.length > 0 ? (
-          <div className="divide-y divide-gray-200">
-            {filteredNotifications.map((notification) => (
-              <div
-                key={notification.id}
-                onClick={() => handleNotificationClick(notification)}
-                className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${
-                  !notification.isRead ? 'bg-blue-50' : ''
-                }`}
-              >
-                <div className="flex items-start gap-4">
-                  <span className="text-2xl flex-shrink-0">
-                    {getNotificationIcon(notification.type)}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p
-                      className={`text-sm ${
-                        !notification.isRead ? 'font-semibold text-gray-900' : 'text-gray-700'
+        {groupedNotifications.length > 0 ? (
+          <div>
+            {groupedNotifications.map((group) => (
+              <div key={group.label}>
+                <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 sticky top-0">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{group.label}</p>
+                </div>
+                <div className="divide-y divide-gray-200">
+                  {group.items.map((notification) => (
+                    <div
+                      key={notification.id}
+                      onClick={() => handleNotificationClick(notification)}
+                      className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer ${
+                        !notification.isRead ? 'bg-blue-50' : ''
                       }`}
                     >
-                      {notification.title}
-                    </p>
-                    <p className="text-sm text-gray-500 mt-1">{notification.message}</p>
-                    <p className="text-xs text-gray-400 mt-2">
-                      {formatDistanceToNow(new Date(notification.createdAt), {
-                        addSuffix: true,
-                        locale: ja,
-                      })}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {!notification.isRead && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMarkAsRead(notification.id);
-                        }}
-                        className="p-2 hover:bg-gray-200 rounded-lg"
-                        title="既読にする"
-                      >
-                        <Check className="w-4 h-4 text-gray-500" />
-                      </button>
-                    )}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(notification.id);
-                      }}
-                      className="p-2 hover:bg-gray-200 rounded-lg"
-                      title="削除"
-                    >
-                      <Trash2 className="w-4 h-4 text-gray-500" />
-                    </button>
-                  </div>
+                      <div className="flex items-start gap-4">
+                        <span className="text-2xl flex-shrink-0">
+                          {getNotificationIcon(notification.type)}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p
+                            className={`text-sm ${
+                              !notification.isRead ? 'font-semibold text-gray-900' : 'text-gray-700'
+                            }`}
+                          >
+                            {notification.title}
+                          </p>
+                          <p className="text-sm text-gray-500 mt-1">{notification.message}</p>
+                          <p className="text-xs text-gray-400 mt-2">
+                            {formatDistanceToNow(new Date(notification.createdAt), {
+                              addSuffix: true,
+                              locale: ja,
+                            })}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {!notification.isRead && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMarkAsRead(notification.id);
+                              }}
+                              className="p-2 hover:bg-gray-200 rounded-lg"
+                              title="既読にする"
+                            >
+                              <Check className="w-4 h-4 text-gray-500" />
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(notification.id);
+                            }}
+                            className="p-2 hover:bg-gray-200 rounded-lg"
+                            title="削除"
+                          >
+                            <Trash2 className="w-4 h-4 text-gray-500" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
