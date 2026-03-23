@@ -18,10 +18,10 @@ import { TaskAttachmentsTab } from '@/components/tasks/task-detail/TaskAttachmen
 import { TaskActivityTab } from '@/components/tasks/task-detail/TaskActivityTab';
 import { TaskSidebar } from '@/components/tasks/task-detail/TaskSidebar';
 import { AssigneeManager } from '@/components/tasks/task-detail/AssigneeManager';
-import { TaskDetailsTab } from '@/components/tasks/task-detail/TaskDetailsTab';
 import { TimeTrackingTab } from '@/components/tasks/task-detail/TimeTrackingTab';
 import { tagService } from '@/services/tag.service';
 import { milestoneService } from '@/services/milestone.service';
+import { taskTemplateService } from '@/services/task-template.service';
 import { Tag, Milestone } from '@/types/task';
 
 interface ProjectMember {
@@ -200,7 +200,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
       loadComments();
     } else if (activeTab === 'subtasks' && subtasks.length === 0) {
       loadSubtasks();
-    } else if (activeTab === 'attachments' && attachments.length === 0) {
+    } else if (activeTab === 'files_time' && attachments.length === 0) {
       loadAttachments();
     } else if (activeTab === 'activity' && activityLogs.length === 0) {
       loadActivityLogs();
@@ -695,6 +695,26 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
     }
   };
 
+  const handleSaveAsTemplate = async () => {
+    if (!task?.project?.id) return;
+    const name = prompt('テンプレート名を入力してください', task.title);
+    if (!name) return;
+    try {
+      await taskTemplateService.create({
+        name,
+        description: task.description || undefined,
+        priority: task.priority,
+        estimatedHours: task.estimatedHours || undefined,
+        subtasks: subtasks.map((s) => ({ title: s.title })),
+        tags: task.tags?.map((t) => ({ name: t.tag.name, color: t.tag.color })),
+        projectId: task.project.id,
+      });
+      alert('テンプレートとして保存しました');
+    } catch (error) {
+      console.error('Failed to save template:', error);
+    }
+  };
+
   const completedSubtasksCount = subtasks.filter(s=>s.completed).length;
 
   // ローディング表示
@@ -724,6 +744,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
         onEdit={() => setIsEditing(true)}
         onDelete={handleDelete}
         isEditing={isEditing}
+        onSaveAsTemplate={handleSaveAsTemplate}
       />
 
       {/* タブナビゲーション */}
@@ -763,6 +784,16 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                 onPriorityChange={handleQuickPriorityChange}
                 isUpdatingStatus={isUpdatingStatus}
                 isUpdatingPriority={isUpdatingPriority}
+                projectTasks={projectTasks}
+                projectMilestones={projectMilestones}
+                projectTags={projectTags}
+                onAddDependency={handleAddDependency}
+                onRemoveDependency={handleRemoveDependency}
+                onSelectMilestone={handleSelectMilestone}
+                onCreateMilestone={handleCreateMilestone}
+                onAddTag={handleAddTag}
+                onRemoveTag={handleRemoveTag}
+                onCreateTag={handleCreateTag}
               />
             )}
 
@@ -785,43 +816,25 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
               />
             )}
 
-            {activeTab === 'attachments' && (
-              <TaskAttachmentsTab
-                attachments={attachments}
-                isUploading={isUploading}
-                onFileUpload={handleFileUpload}
-                onDeleteAttachment={handleDeleteAttachment}
-              />
-            )}
-
-            {activeTab === 'time' && (
-              <TimeTrackingTab
-                taskId={resolvedParams.id}
-                estimatedHours={task.estimatedHours}
-                currentUserId={user?.id}
-                onUpdate={loadTaskDetail}
-              />
+            {activeTab === 'files_time' && (
+              <div className="space-y-6">
+                <TaskAttachmentsTab
+                  attachments={attachments}
+                  isUploading={isUploading}
+                  onFileUpload={handleFileUpload}
+                  onDeleteAttachment={handleDeleteAttachment}
+                />
+                <TimeTrackingTab
+                  taskId={resolvedParams.id}
+                  estimatedHours={task.estimatedHours}
+                  currentUserId={user?.id}
+                  onUpdate={loadTaskDetail}
+                />
+              </div>
             )}
 
             {activeTab === 'activity' && (
               <TaskActivityTab activityLogs={activityLogs} />
-            )}
-
-            {activeTab === 'details' && (
-              <TaskDetailsTab
-                task={task}
-                projectTasks={projectTasks}
-                projectMilestones={projectMilestones}
-                projectTags={projectTags}
-                projectMembers={projectMembers}
-                onAddDependency={handleAddDependency}
-                onRemoveDependency={handleRemoveDependency}
-                onSelectMilestone={handleSelectMilestone}
-                onCreateMilestone={handleCreateMilestone}
-                onAddTag={handleAddTag}
-                onRemoveTag={handleRemoveTag}
-                onCreateTag={handleCreateTag}
-              />
             )}
           </div>
 

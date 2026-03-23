@@ -1,6 +1,6 @@
-import { Flag, MessageSquare, CheckSquare, Paperclip, History, Settings, Clock, LucideIcon } from 'lucide-react';
+import { Flag, MessageSquare, CheckSquare, Paperclip, History, LucideIcon } from 'lucide-react';
 
-export type TabId = 'overview' | 'comments' | 'subtasks' | 'attachments' | 'activity' | 'details' | 'time';
+export type TabId = 'overview' | 'comments' | 'subtasks' | 'files_time' | 'activity';
 
 interface Tab {
   id: TabId;
@@ -22,11 +22,9 @@ interface TaskTabsProps {
 export function TaskTabs({ activeTab, onTabChange, counts }: TaskTabsProps) {
   const tabs: Tab[] = [
     { id: 'overview', label: '概要', icon: Flag },
-    { id: 'time', label: '工数', icon: Clock },
     { id: 'comments', label: 'コメント', icon: MessageSquare, count: counts.comments },
     { id: 'subtasks', label: 'サブタスク', icon: CheckSquare, count: counts.subtasks },
-    { id: 'attachments', label: '添付ファイル', icon: Paperclip, count: counts.attachments },
-    { id: 'details', label: '詳細', icon: Settings },
+    { id: 'files_time', label: 'ファイル・工数', icon: Paperclip, count: counts.attachments },
     { id: 'activity', label: '履歴', icon: History },
   ];
 

@@ -1,6 +1,10 @@
 import React from 'react';
-import { Task } from '@/types/task';
+import { Task, Milestone, Tag } from '@/types/task';
+import { ProjectMember } from '@/types/project';
 import { TaskEditForm } from './TaskEditForm';
+import { DependencyManager } from './DependencyManager';
+import { MilestoneSelector } from './MilestoneSelector';
+import { TagManager } from './TagManager';
 import { differenceInDays, isAfter, startOfDay, parseISO, format } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import {
@@ -14,6 +18,7 @@ import {
 } from 'lucide-react';
 import { UserAvatar } from '@/components/ui/user-avatar';
 import { sanitizeText } from '@/lib/sanitize';
+import { InlineEdit } from '@/components/ui/inline-edit';
 
 interface TaskOverviewTabProps {
   task: Task;
@@ -46,6 +51,17 @@ interface TaskOverviewTabProps {
   onPriorityChange?: (priority: Task['priority']) => void;
   isUpdatingStatus?: boolean;
   isUpdatingPriority?: boolean;
+  // 依存/マイルストーン/タグ（旧detailsタブから統合）
+  projectTasks?: Task[];
+  projectMilestones?: Milestone[];
+  projectTags?: Tag[];
+  onAddDependency?: (dependsOnId: string) => Promise<void>;
+  onRemoveDependency?: (dependsOnId: string) => Promise<void>;
+  onSelectMilestone?: (milestoneId: string | null) => Promise<void>;
+  onCreateMilestone?: (name: string, dueDate: string) => Promise<void>;
+  onAddTag?: (tagId: string) => Promise<void>;
+  onRemoveTag?: (tagId: string) => Promise<void>;
+  onCreateTag?: (name: string, color: string) => Promise<void>;
 }
 
 export function TaskOverviewTab({
@@ -68,6 +84,16 @@ export function TaskOverviewTab({
   onPriorityChange,
   isUpdatingStatus = false,
   isUpdatingPriority = false,
+  projectTasks = [],
+  projectMilestones = [],
+  projectTags = [],
+  onAddDependency,
+  onRemoveDependency,
+  onSelectMilestone,
+  onCreateMilestone,
+  onAddTag,
+  onRemoveTag,
+  onCreateTag,
 }: TaskOverviewTabProps) {
   // 進捗率を計算（task.progress を優先）
   const calculateProgress = () => {
@@ -180,6 +206,14 @@ export function TaskOverviewTab({
     ? task.actualHours - task.estimatedHours
     : null;
 
+  const handleInlineSave = async (field: string, value: string) => {
+    onFormChange({ [field]: value });
+    const updatedFormData = { ...formData, [field]: value };
+    // Trigger save with the updated data
+    onFormChange(updatedFormData);
+    await onSave();
+  };
+
   return (
     <div className="space-y-6">
       {isEditing ? (
@@ -196,12 +230,22 @@ export function TaskOverviewTab({
         <>
           {/* タイトルと説明 */}
           <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">{task.title}</h2>
-            {task.description && (
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{sanitizeText(task.description)}</p>
-              </div>
-            )}
+            <InlineEdit
+              value={task.title}
+              onSave={(v) => handleInlineSave('title', v)}
+              displayClassName="text-2xl font-bold text-gray-900 mb-4"
+              placeholder="タスクタイトル"
+            />
+            <div className="mt-4">
+              <InlineEdit
+                value={task.description || ''}
+                onSave={(v) => handleInlineSave('description', v)}
+                type="textarea"
+                displayClassName="text-gray-700"
+                emptyText="説明を追加..."
+                placeholder="タスクの説明"
+              />
+            </div>
           </div>
 
           {/* キー情報サマリー */}
@@ -364,29 +408,35 @@ export function TaskOverviewTab({
             </div>
           </div>
 
-          {/* 依存タスク */}
-          {task.dependencies && task.dependencies.length > 0 && (
-            <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
-              <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <div className="w-1 h-5 bg-indigo-600 rounded-full"></div>
-                依存タスク
-              </h4>
-              <div className="space-y-2">
-                {task.dependencies.map((dep) => (
-                  <div key={dep.id} className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      dep.dependsOn.status === 'done' ? 'bg-green-100 text-green-700' :
-                      dep.dependsOn.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
-                      'bg-gray-100 text-gray-700'
-                    }`}>
-                      {dep.dependsOn.status === 'done' ? '✓ 完了' :
-                       dep.dependsOn.status === 'in_progress' ? '▶ 進行中' : '○ 未着手'}
-                    </span>
-                    <span className="text-sm font-medium text-gray-900">{dep.dependsOn.title}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {/* 依存関係 */}
+          {onAddDependency && onRemoveDependency && (
+            <DependencyManager
+              task={task}
+              projectTasks={projectTasks}
+              onAddDependency={onAddDependency}
+              onRemoveDependency={onRemoveDependency}
+            />
+          )}
+
+          {/* マイルストーン */}
+          {onSelectMilestone && onCreateMilestone && (
+            <MilestoneSelector
+              currentMilestone={task.milestone}
+              projectMilestones={projectMilestones}
+              onSelectMilestone={onSelectMilestone}
+              onCreateMilestone={onCreateMilestone}
+            />
+          )}
+
+          {/* タグ */}
+          {onAddTag && onRemoveTag && onCreateTag && (
+            <TagManager
+              taskTags={task.tags || []}
+              projectTags={projectTags}
+              onAddTag={onAddTag}
+              onRemoveTag={onRemoveTag}
+              onCreateTag={onCreateTag}
+            />
           )}
         </>
       )}
