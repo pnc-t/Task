@@ -13,7 +13,8 @@ import { wsClient } from '@/lib/websocket-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Users, Calendar as CalendarIcon, LayoutGrid, List, BarChart3, GitBranch, Trash2, MoreVertical, X } from 'lucide-react';
+import { Plus, Users, Calendar as CalendarIcon, LayoutGrid, List, BarChart3, GitBranch, Trash2, MoreVertical, X, UserCheck, Download, UserPlus, Settings, Pencil } from 'lucide-react';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { CreateTaskDialog } from '@/components/tasks/create-task-dialog';
 import { TaskBoard } from '@/components/tasks/task-board';
 import { TaskList } from '@/components/tasks/task-list';
@@ -21,8 +22,9 @@ import { TaskCalendarView } from '@/components/tasks/task-calendar-view';
 import { GanttChart } from '@/components/tasks/gantt-chart';
 import { WBSView } from '@/components/tasks/wbs-view';
 import { MemberManagement } from '@/components/projects/member-management';
+import { WorkloadView } from '@/components/projects/workload-view';
 
-type ViewMode = 'board' | 'list' | 'calendar' | 'gantt' | 'wbs';
+type ViewMode = 'board' | 'list' | 'calendar' | 'gantt' | 'wbs' | 'workload';
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -44,6 +46,10 @@ export default function ProjectDetailPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('gantt');
   const [showMenu, setShowMenu] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
   const [confirmName, setConfirmName] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const menuRef = useRef<HTMLDivElement>(null);
@@ -175,6 +181,28 @@ export default function ProjectDetailPage() {
     setShowCreateDialog(false);
   };
 
+  const handleEditProject = () => {
+    if (project) {
+      setEditName(project.name);
+      setEditDescription(project.description || '');
+      setShowEditDialog(true);
+    }
+    setShowMenu(false);
+  };
+
+  const executeEditProject = async () => {
+    setEditLoading(true);
+    try {
+      await projectService.update(projectId, { name: editName, description: editDescription });
+      setShowEditDialog(false);
+      loadProject();
+    } catch (err) {
+      console.error('Failed to update project:', err);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   const handleDeleteProject = () => {
     setShowDeleteDialog(true);
     setShowMenu(false);
@@ -207,42 +235,45 @@ export default function ProjectDetailPage() {
   }
 
   return (
-    <div className={viewMode === 'gantt' || viewMode === 'calendar' ? 'flex flex-col h-full' : ''}>
+    <div className="flex flex-col h-full">
       {/* ヘッダー */}
-      <div className={`flex items-start justify-between ${viewMode === 'gantt' || viewMode === 'calendar' ? 'px-4 lg:px-6 pt-3 pb-1 flex-shrink-0' : 'mb-6'}`}>
-        <div className="flex-1 min-w-0">
-          {viewMode === 'gantt' || viewMode === 'calendar' ? (
-            <div className="flex items-center gap-3">
-              <h1 className="text-lg font-bold text-gray-900 truncate">{project.name}</h1>
-              <button
-                onClick={() => setShowMemberDialog(true)}
-                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900 transition-colors flex-shrink-0"
-              >
-                <Users className="w-3 h-3" />
-                <span>{project.members.length}</span>
-              </button>
-              <span className="text-xs text-gray-500 flex-shrink-0">{allTasks.length} タスク</span>
-            </div>
-          ) : (
-            <>
-              <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
-              {project.description && (
-                <p className="text-gray-600 mt-1">{project.description}</p>
-              )}
-              <div className="flex items-center gap-4 mt-3">
-                <button
-                  onClick={() => setShowMemberDialog(true)}
-                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-                >
-                  <Users className="w-4 h-4" />
-                  <span>{project.members.length} メンバー</span>
-                </button>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <span>{allTasks.length} タスク</span>
-                </div>
+      <div className="flex items-center justify-between flex-shrink-0 mb-2">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className="relative group min-w-0">
+            <h1 className="text-lg font-bold text-gray-900 truncate cursor-default">{project.name}</h1>
+            {project.description && (
+              <div className="absolute left-0 top-full mt-1 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity whitespace-normal max-w-sm">
+                {project.description}
               </div>
-            </>
-          )}
+            )}
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex -space-x-2">
+              {project.members.slice(0, 4).map((member) => (
+                <UserAvatar
+                  key={member.id}
+                  name={member.user.name}
+                  avatar={member.user.avatar}
+                  size="sm"
+                  className="ring-2 ring-white"
+                />
+              ))}
+              {project.members.length > 4 && (
+                <div className="w-6 h-6 rounded-full bg-gray-200 text-[10px] font-medium text-gray-600 flex items-center justify-center ring-2 ring-white">
+                  +{project.members.length - 4}
+                </div>
+              )}
+            </div>
+            <span className="text-xs text-gray-500">{project.members.length}人</span>
+            <button
+              onClick={() => setShowMemberDialog(true)}
+              className="w-6 h-6 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+              title="メンバーを追加"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <span className="text-xs text-gray-500 flex-shrink-0">{allTasks.length} タスク</span>
         </div>
         <div className="flex items-center gap-2">
           {isOwner && (
@@ -254,10 +285,37 @@ export default function ProjectDetailPage() {
                 <MoreVertical className="w-4 h-4" />
               </button>
               {showMenu && (
-                <div className="absolute right-0 top-full mt-1 w-40 bg-white border border-gray-200 rounded-md shadow-lg z-40">
+                <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-40 py-1">
+                  <button
+                    onClick={handleEditProject}
+                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <Pencil className="w-4 h-4" />
+                    プロジェクトを編集
+                  </button>
+                  <button
+                    onClick={() => { setShowMemberDialog(true); setShowMenu(false); }}
+                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <Users className="w-4 h-4" />
+                    メンバー管理
+                  </button>
+                  <button
+                    onClick={() => {
+                      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+                      const token = localStorage.getItem('token');
+                      window.open(`${apiUrl}/tasks/export/ical?projectId=${projectId}&token=${token}`, '_blank');
+                      setShowMenu(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    iCalエクスポート
+                  </button>
+                  <div className="border-t border-gray-100 my-1" />
                   <button
                     onClick={handleDeleteProject}
-                    className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 rounded-md"
+                    className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                   >
                     <Trash2 className="w-4 h-4" />
                     削除
@@ -274,7 +332,7 @@ export default function ProjectDetailPage() {
       </div>
 
       {/* ビュー切り替え */}
-      <div className={`flex gap-2 border-b border-gray-200 overflow-x-auto flex-shrink-0 ${viewMode === 'gantt' ? 'px-4 lg:px-6' : 'mb-6'}`}>
+      <div className="flex gap-2 border-b border-gray-200 overflow-x-auto flex-shrink-0 mb-0">
         <button
           onClick={() => setViewMode('board')}
           className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors whitespace-nowrap ${
@@ -330,22 +388,36 @@ export default function ProjectDetailPage() {
           <GitBranch className="w-4 h-4" />
           <span>WBS</span>
         </button>
+        <button
+          onClick={() => setViewMode('workload')}
+          className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors whitespace-nowrap ${
+            viewMode === 'workload'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <UserCheck className="w-4 h-4" />
+          <span>ワークロード</span>
+        </button>
       </div>
 
       {/* コンテンツエリア */}
-      {viewMode === 'board' && <TaskBoard tasks={tasks} onUpdate={loadTasks} />}
-      {viewMode === 'list' && <TaskList tasks={allTasks} onUpdate={loadTasks} />}
-      {viewMode === 'calendar' && (
-        <div className="flex-1 overflow-hidden">
-          <TaskCalendarView tasks={allTasks} onUpdate={loadTasks} milestones={milestones} projectId={projectId} />
-        </div>
-      )}
-      {viewMode === 'gantt' && (
-        <div className="flex-1 overflow-hidden">
-          <GanttChart tasks={allTasks} onUpdate={loadTasks} milestones={milestones} />
-        </div>
-      )}
-      {viewMode === 'wbs' && <WBSView tasks={allTasks} onUpdate={loadTasks} />}
+      <div className="flex-1 min-h-0">
+        {viewMode === 'board' && <TaskBoard tasks={tasks} onUpdate={loadTasks} />}
+        {viewMode === 'list' && <TaskList tasks={allTasks} onUpdate={loadTasks} />}
+        {viewMode === 'calendar' && (
+          <div className="h-full overflow-hidden -mx-6 lg:-mx-8">
+            <TaskCalendarView tasks={allTasks} onUpdate={loadTasks} milestones={milestones} projectId={projectId} />
+          </div>
+        )}
+        {viewMode === 'gantt' && (
+          <div className="h-full overflow-hidden -mx-6 lg:-mx-8">
+            <GanttChart tasks={allTasks} onUpdate={loadTasks} milestones={milestones} />
+          </div>
+        )}
+        {viewMode === 'wbs' && <WBSView tasks={allTasks} onUpdate={loadTasks} />}
+        {viewMode === 'workload' && <WorkloadView tasks={allTasks} />}
+      </div>
 
       {/* ダイアログ */}
       <CreateTaskDialog
@@ -361,6 +433,46 @@ export default function ProjectDetailPage() {
         project={project}
         onUpdate={loadProject}
       />
+
+      {showEditDialog && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">プロジェクトを編集</h2>
+              <button onClick={() => setShowEditDialog(false)} className="p-2 hover:bg-gray-100 rounded-md">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <Label htmlFor="edit-name">プロジェクト名</Label>
+                <Input
+                  id="edit-name"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-desc">説明</Label>
+                <textarea
+                  id="edit-desc"
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows={3}
+                  className="mt-1 flex w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 p-6 border-t border-gray-200">
+              <Button variant="outline" onClick={() => setShowEditDialog(false)}>キャンセル</Button>
+              <Button onClick={executeEditProject} disabled={editLoading || !editName.trim()}>
+                {editLoading ? '保存中...' : '保存'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showDeleteDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
