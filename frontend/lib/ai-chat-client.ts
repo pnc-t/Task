@@ -88,12 +88,14 @@ class AiChatClient {
     conversationId?: string,
     projectId?: string,
     provider?: AiProviderType,
+    context?: { page?: string; projectId?: string; projectName?: string; taskId?: string; taskTitle?: string },
   ) {
     this.emit('chat:send', {
       content,
       conversationId,
       projectId,
       provider,
+      context,
     });
   }
 
@@ -116,6 +118,7 @@ class AiChatClient {
     projectId?: string,
     provider?: AiProviderType,
     onChunk?: (chunk: StreamChunk) => void,
+    context?: { page?: string; projectId?: string; projectName?: string; taskId?: string; taskTitle?: string },
   ): Promise<SendMessageResponse> {
     return new Promise((resolve, reject) => {
       const handleChunk = (chunk: StreamChunk) => {
@@ -140,7 +143,7 @@ class AiChatClient {
       this.on('chat:stream_end', handleEnd);
       this.on('chat:error', handleError);
 
-      this.sendMessage(content, conversationId, projectId, provider);
+      this.sendMessage(content, conversationId, projectId, provider, context);
     });
   }
 

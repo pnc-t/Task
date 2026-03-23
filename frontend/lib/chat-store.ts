@@ -23,7 +23,7 @@ interface ChatState {
   disconnect: () => void;
   loadConversations: () => Promise<void>;
   loadConversation: (conversationId: string) => Promise<void>;
-  sendMessage: (content: string, projectId?: string) => Promise<void>;
+  sendMessage: (content: string, projectId?: string, context?: { page?: string; projectId?: string; projectName?: string; taskId?: string; taskTitle?: string }) => Promise<void>;
   deleteConversation: (conversationId: string) => Promise<void>;
   startNewConversation: () => void;
 }
@@ -74,7 +74,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     }
   },
 
-  sendMessage: async (content: string, projectId?: string) => {
+  sendMessage: async (content: string, projectId?: string, context?: { page?: string; projectId?: string; projectName?: string; taskId?: string; taskTitle?: string }) => {
     const { currentConversation, selectedProvider } = get();
 
     try {
@@ -111,6 +111,7 @@ export const useChatStore = create<ChatState>()((set, get) => ({
         projectId || currentConversation?.projectId,
         selectedProvider,
         onChunk,
+        context,
       );
 
       // レスポンスで会話を更新

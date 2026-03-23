@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
+import { usePathname } from 'next/navigation';
 import { useChatStore } from '@/lib/chat-store';
 import { useAuthStore } from '@/lib/auth-store';
 import { ChatMessage } from './ChatMessage';
@@ -45,8 +46,42 @@ export function ChatPanel({ projectId }: ChatPanelProps) {
   } = useChatStore();
 
   const { accessToken } = useAuthStore();
+  const pathname = usePathname();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const showHistory = useRef(false);
+
+  // ページコンテキストを検出
+  const pageContext = useMemo(() => {
+    if (pathname.startsWith('/projects/')) {
+      const id = pathname.split('/')[2];
+      return { page: 'project-detail', projectId: id };
+    }
+    if (pathname.startsWith('/tasks/')) {
+      const id = pathname.split('/')[2];
+      return { page: 'task-detail', taskId: id };
+    }
+    if (pathname === '/dashboard') return { page: 'dashboard' };
+    if (pathname === '/projects') return { page: 'projects' };
+    if (pathname === '/tasks') return { page: 'tasks' };
+    if (pathname === '/reports') return { page: 'reports' };
+    return { page: pathname };
+  }, [pathname]);
+
+  // ページごとのサジェストプロンプト
+  const suggestedPrompts = useMemo(() => {
+    switch (pageContext.page) {
+      case 'dashboard':
+        return ['今日やるべきタスクは？', '遅延しているタスクを教えて', '今週の進捗サマリー'];
+      case 'project-detail':
+        return ['このプロジェクトの進捗は？', '優先度の高いタスクを教えて', 'タスクを追加して'];
+      case 'task-detail':
+        return ['このタスクの状況を要約して', '関連タスクを教えて', 'サブタスクを提案して'];
+      case 'reports':
+        return ['今月の完了率は？', 'ボトルネックを分析して', '生産性の改善提案'];
+      default:
+        return ['タスクを作成して', 'プロジェクトの進捗を教えて', '今日のやることリスト'];
+    }
+  }, [pageContext.page]);
 
   // Connect to WebSocket on mount
   useEffect(() => {
@@ -66,7 +101,7 @@ export function ChatPanel({ projectId }: ChatPanelProps) {
   }, [currentConversation?.messages, streamingContent]);
 
   const handleSendMessage = async (content: string) => {
-    await sendMessage(content, projectId);
+    await sendMessage(content, projectId, pageContext);
   };
 
   const handleSelectConversation = (conversationId: string) => {
@@ -209,11 +244,16 @@ export function ChatPanel({ projectId }: ChatPanelProps) {
               <br />
               何でもお聞きください。
             </p>
-            <div className="mt-4 text-sm space-y-1">
-              <p>例:</p>
-              <p className="text-gray-500">「新しいタスクを作成して」</p>
-              <p className="text-gray-500">「今日期限のタスクを教えて」</p>
-              <p className="text-gray-500">「高優先度のタスク一覧」</p>
+            <div className="mt-4 flex flex-wrap gap-2 justify-center px-2">
+              {suggestedPrompts.map((prompt) => (
+                <button
+                  key={prompt}
+                  onClick={() => handleSendMessage(prompt)}
+                  className="text-sm px-3 py-1.5 bg-purple-50 text-purple-600 rounded-full hover:bg-purple-100 transition-colors border border-purple-200"
+                >
+                  {prompt}
+                </button>
+              ))}
             </div>
           </div>
         )}
